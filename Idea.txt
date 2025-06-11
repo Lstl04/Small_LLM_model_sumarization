@@ -1,0 +1,34 @@
+Models: 
+- Llama 
+- Gemma
+- Qwen 
+
+Plan: 
+1. Phase 1: Dataset Preparation
+    a. Load and parse the dataset (e.g., CSV or JSON format).
+    b. Filter books to those with human summaries in the 500–750 word range.
+    c. Randomly sample a small subset (3–5) for initial testing.
+
+2. Phase 2: Model Selection and Setup
+
+3. Phase 3: Chunking Strategy
+    Experiment with:
+    a. Chunk size (e.g., 1024, 2048, 4096 tokens)
+    b. Chunk overlap (to preserve continuity — try 10–20%)
+    c. Sentence/paragraph-aware chunking (avoid splitting mid-sentence)
+
+4. Phase 4: Summarization and Aggregation
+    Step-by-Step:
+    a. Run summarization on each chunk using the selected LLM.
+    b. Aggregate summaries via:
+        - Concatenation + re-summarization (i.e., summarize the summaries)
+        - Tree-based approach (group chunks into sections, summarize each, then summarize those)
+        - Rank and merge based on relevance (use embeddings or cosine similarity)
+
+5. Phase 5: Evaluation with human made summaries
+
+So we testing 3 models with these variables:
+- Different chunk size
+- different sumarization method (summarize by chunk )
+
+
