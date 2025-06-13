@@ -4,7 +4,7 @@ Models:
 - Qwen 
 
 Plan: 
-1. Phase 1: Dataset Preparation
+1. Phase 1: Dataset Preparation ✅
     a. Load and parse the dataset (e.g., CSV or JSON format).
     b. Filter books to those with human summaries in the 500–750 word range.
     c. Randomly sample a small subset (3–5) for initial testing.
@@ -31,4 +31,11 @@ So we testing 3 models with these variables:
 - Different chunk size
 - different sumarization method (summarize by chunk )
 
+https://huggingface.co/google/gemma-3-4b-it
+https://huggingface.co/Qwen/Qwen2.5-7B-Instruct
+https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct
 
+Model script blueprint:
+1. chunk processing 
+2. prompt building
+3. summarization
