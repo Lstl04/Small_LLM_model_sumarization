@@ -12,16 +12,29 @@ print(f"Using device: {device}")
 try:
     model_name = "Qwen/Qwen2.5-7B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        device_map="auto",
-        trust_remote_code=True
-    )
+    
+    # Load model with explicit device mapping
+    if device == "cuda":
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto",
+            trust_remote_code=True
+        )
+    else:
+        # For CPU, load without device_map
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            trust_remote_code=True
+        )
+        model = model.to(device)
+        
+    print(f"Model loaded successfully on {device}")
+    
 except Exception as e:
     print(f"Error loading model: {e}")
     raise
 
-def process_chunks(text: str, chunk_length: int = 1000, chunk_overlap: int = 100) -> List[str]:
+def process_chunks(text: str, chunk_length: int = 100000, chunk_overlap: int = 100) -> List[str]:
     """
     Tokenizes text into chunks with specified length and overlap.
     
@@ -61,31 +74,25 @@ def summarize_chunks(chunks: List[str]) -> List[str]:
         List[str]: List of chunk summaries
     """
     summaries = []
-    
-    for chunk in chunks:
-        try:
-            # Prepare prompt for summarization
-            prompt = f"Please summarize the following text:\n\n{chunk}\n\nSummary:"
-            
-            # Generate summary
-            inputs = tokenizer(prompt, return_tensors="pt").to(device)
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=200,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True
-            )
-            
-            summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            # Extract only the summary part (after "Summary:")
-            summary = summary.split("Summary:")[-1].strip()
-            summaries.append(summary)
-            
-        except Exception as e:
-            print(f"Error summarizing chunk: {e}")
-            summaries.append("")  # Add empty string for failed chunks
-    
+    for i, chunk in enumerate(chunks):
+        print(f"Processing chunk {i+1}/{len(chunks)}…")
+
+        prompt = f"Please summarize the following text:\n\n{chunk}\n\nSummary:"
+        inputs = tokenizer(prompt, return_tensors="pt")
+
+        # **key change**: find the device of the model’s parameters
+        model_device = next(model.parameters()).device
+        inputs = {k: v.to(model_device) for k, v in inputs.items()}
+
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=200,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True
+        )
+        summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        summaries.append(summary.split("Summary:")[-1].strip())
     return summaries
 
 def aggregate_summaries(summaries: List[str]) -> str:
@@ -98,31 +105,26 @@ def aggregate_summaries(summaries: List[str]) -> str:
     Returns:
         str: Final aggregated summary
     """
-    # Combine all summaries
     combined_text = " ".join(summaries)
-    
-    try:
-        # Prepare prompt for final summary
-        prompt = f"Please provide a coherent summary of the following text:\n\n{combined_text}\n\nFinal Summary:"
+    print("Generating final summary…")
+    prompt = f"Please provide a coherent summary of the following text:\n\n{combined_text}\n\nFinal Summary:"
+    inputs = tokenizer(prompt, return_tensors="pt")
+
+    # send inputs to the same device as the model
+    model_device = next(model.parameters()).device
+    inputs = {k: v.to(model_device) for k, v in inputs.items()}
+
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=750,
+        temperature=0.7,
+        top_p=0.9,
+        do_sample=True
+    )
+    text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return text.split("Final Summary:")[-1].strip()
         
-        # Generate final summary
-        inputs = tokenizer(prompt, return_tensors="pt").to(device)
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=750,
-            temperature=0.7,
-            top_p=0.9,
-            do_sample=True
-        )
-        
-        final_summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # Extract only the summary part (after "Final Summary:")
-        final_summary = final_summary.split("Final Summary:")[-1].strip()
-        return final_summary
-        
-    except Exception as e:
-        print(f"Error generating final summary: {e}")
-        return "Error generating final summary"
+  
 
 if __name__ == "__main__":
     # Example usage
