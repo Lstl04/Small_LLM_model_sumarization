@@ -2,6 +2,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from typing import List
 import os
+from Data_preparation import get_data
 
 # Check for GPU availability
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -108,7 +109,7 @@ def aggregate_summaries(summaries: List[str]) -> str:
         inputs = tokenizer(prompt, return_tensors="pt").to(device)
         outputs = model.generate(
             **inputs,
-            max_new_tokens=300,
+            max_new_tokens=750,
             temperature=0.7,
             top_p=0.9,
             do_sample=True
@@ -126,9 +127,15 @@ def aggregate_summaries(summaries: List[str]) -> str:
 if __name__ == "__main__":
     # Example usage
     try:
-        # Read sample text file
-        with open("sample.txt", "r", encoding="utf-8") as f:
-            text = f.read()
+        # Get sample books from data preparation
+        df = get_data()
+        
+        # Use first book for testing
+        text = df.iloc[0]['full_text']
+        original_summary = df.iloc[0]['summary']
+        
+        print(f"\nTesting summary generation for book: {df.iloc[0]['title']}")
+        print(f"Original summary length: {len(original_summary.split())}")
         
         # Process text into chunks
         chunks = process_chunks(text)
@@ -143,7 +150,8 @@ if __name__ == "__main__":
         print("\nFinal Summary:")
         print(final_summary)
         
-    except FileNotFoundError:
-        print("Error: sample.txt file not found")
+        print("\nOriginal Summary (for comparison):")
+        print(original_summary)
+        
     except Exception as e:
         print(f"An error occurred: {e}")
