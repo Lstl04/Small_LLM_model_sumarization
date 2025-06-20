@@ -1,5 +1,6 @@
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
 from typing import List
 import os
 from Data_preparation import get_data
@@ -12,11 +13,14 @@ print(f"Using device: {device}")
 try:
     model_name = "Qwen/Qwen2.5-7B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    quant_config = BitsAndBytesConfig(load_in_8bit=True)
     
     # Load model with explicit device mapping
     if device == "cuda":
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
+            quantization_config=quant_config,
+            torch_dtype=torch.float16,
             device_map="auto",
             trust_remote_code=True
         )
@@ -24,17 +28,20 @@ try:
         # For CPU, load without device_map
         model = AutoModelForCausalLM.from_pretrained(
             model_name,
+            quantization_config=quant_config,
+            torch_dtype=torch.float16,
             trust_remote_code=True
         )
         model = model.to(device)
-        
+
+    print(next(model.parameters()).device)
     print(f"Model loaded successfully on {device}")
     
 except Exception as e:
     print(f"Error loading model: {e}")
     raise
 
-def process_chunks(text: str, chunk_length: int = 100000, chunk_overlap: int = 100) -> List[str]:
+def process_chunks(text: str, chunk_length: int = 50, chunk_overlap: int = 10) -> List[str]:
     """
     Tokenizes text into chunks with specified length and overlap.
     
@@ -86,12 +93,13 @@ def summarize_chunks(chunks: List[str]) -> List[str]:
 
         outputs = model.generate(
             **inputs,
-            max_new_tokens=200,
+            max_new_tokens=50,
             temperature=0.7,
             top_p=0.9,
             do_sample=True
         )
         summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        print(summary)
         summaries.append(summary.split("Summary:")[-1].strip())
     return summaries
 
