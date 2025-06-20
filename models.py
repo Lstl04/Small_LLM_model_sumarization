@@ -1,9 +1,8 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-
 from typing import List
 import os
-from Data_preparation import get_data
+from Data_preparation import get_data, load_testing_data
 
 # Check for GPU availability
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -141,7 +140,7 @@ if __name__ == "__main__":
     # Example usage
     try:
         # Get sample books from data preparation
-        df = get_data()
+        df = load_testing_data()
         
         # Use first book for testing
         text = df.iloc[0]['full_text']
