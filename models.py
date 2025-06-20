@@ -13,7 +13,10 @@ print(f"Using device: {device}")
 try:
     model_name = "Qwen/Qwen2.5-7B-Instruct"
     tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
-    quant_config = BitsAndBytesConfig(load_in_8bit=True)
+    quant_config = BitsAndBytesConfig(
+        load_in_8bit=True,
+        llm_int8_enable_fp32_cpu_offload=True,  # keep overflow layers in fp32 on CPU
+    )
     
     # Load model with explicit device mapping
     if device == "cuda":
