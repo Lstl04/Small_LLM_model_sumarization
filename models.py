@@ -165,6 +165,15 @@ if __name__ == "__main__":
         
         print("\nOriginal Summary (for comparison):")
         print(original_summary)
+        # Save summaries to CSV for comparison
+        print("\nSaving summaries to comparison file...")
+        comparison_df = pd.DataFrame({
+            'Title': [df.iloc[0]['title']],
+            'Generated_Summary': [final_summary],
+            'Original_Summary': [original_summary]
+        })
+        comparison_df.to_csv('summary_comparison.csv', index=False)
+        print("Summaries saved to summary_comparison.csv")
         
     except Exception as e:
         print(f"An error occurred: {e}")
