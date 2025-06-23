@@ -105,6 +105,7 @@ def summarize_chunks(chunks: List[str]) -> List[str]:
         summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
         print(summary)
         summaries.append(summary.split("Summary:")[-1].strip())
+        torch.cuda.empty_cache()
     return summaries
 
 def aggregate_summaries(summaries: List[str]) -> str:
@@ -125,15 +126,16 @@ def aggregate_summaries(summaries: List[str]) -> str:
     # send inputs to the same device as the model
     model_device = next(model.parameters()).device
     inputs = {k: v.to(model_device) for k, v in inputs.items()}
-
-    outputs = model.generate(
-        **inputs,
-        max_new_tokens=750,
-        temperature=0.7,
-        top_p=0.9,
-        do_sample=True
-    )
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_new_tokens=750,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True
+        )
     text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    torch.cuda.empty_cache()
     return text.split("Final Summary:")[-1].strip()
         
   
