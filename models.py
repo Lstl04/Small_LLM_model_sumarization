@@ -43,7 +43,7 @@ except Exception as e:
     print(f"Error loading model: {e}")
     raise
 
-def process_chunks(text: str, chunk_length: int = 30000, chunk_overlap: int = 300) -> List[str]:
+def process_chunks(text: str, chunk_length: int = 10000, chunk_overlap: int = 150) -> List[str]:
     """
     Tokenizes text into chunks with specified length and overlap.
     
