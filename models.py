@@ -3,6 +3,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from typing import List
 import os
 from Data_preparation import get_data, load_testing_data
+import pandas as pd
 
 # Check for GPU availability
 device = "cuda" if torch.cuda.is_available() else "cpu"
