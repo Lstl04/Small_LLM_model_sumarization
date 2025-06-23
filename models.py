@@ -35,6 +35,7 @@ try:
             trust_remote_code=True
         )
         model = model.to(device)
+    model.eval()
 
     print(next(model.parameters()).device)
     print(f"Model loaded successfully on {device}")
@@ -92,14 +93,14 @@ def summarize_chunks(chunks: List[str]) -> List[str]:
         # **key change**: find the device of the model’s parameters
         model_device = next(model.parameters()).device
         inputs = {k: v.to(model_device) for k, v in inputs.items()}
-
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=500,
-            temperature=0.7,
-            top_p=0.9,
-            do_sample=True
-        )
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=500,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True
+            )
         summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
         print(summary)
         summaries.append(summary.split("Summary:")[-1].strip())
