@@ -1,10 +1,14 @@
-def _summarize_list(text_list: List[str], header: str, trailer: str, max_new_tokens: int) -> str:
+import torch
+from typing import List
+
+
+def _summarize_list(model, tokenizer, device, text_list: List[str], header: str, trailer: str, max_new_tokens: int) -> str:
     """
     Summarize a list of short texts in a single generate() call.
     """
     prompt = header + "\n\n" + "\n\n".join(text_list) + "\n\n" + trailer
     enc = tokenizer(prompt, return_tensors="pt", truncation=True)
-    enc = {k: v.to(DEVICE) for k, v in enc.items()}
+    enc = {k: v.to(device) for k, v in enc.items()}
     with torch.inference_mode():
         out = model.generate(
             **enc,
@@ -12,12 +16,21 @@ def _summarize_list(text_list: List[str], header: str, trailer: str, max_new_tok
             temperature=0.7,
             top_p=0.9,
             do_sample=True,
+            pad_token_id=getattr(tokenizer, "pad_token_id", None) or getattr(tokenizer, "eos_token_id", None),
         )
     text = tokenizer.decode(out[0], skip_special_tokens=True)
     return text
 
 
-def aggregate_summaries(summaries: List[str], group_size: int = 10) -> str:
+def aggregate_summaries(
+    model,
+    tokenizer,
+    device,
+    summaries: List[str],
+    group_size: int = 10,
+    max_mid: int = 500,
+    max_final: int = 1000,
+) -> str:
     """
     Hierarchical aggregation to avoid OOM:
       - First summarize chunk summaries in groups (size=group_size)
@@ -32,11 +45,11 @@ def aggregate_summaries(summaries: List[str], group_size: int = 10) -> str:
     trailer = "Intermediate Summary:"
     for i in range(0, len(summaries), group_size):
         group = summaries[i:i + group_size]
-        mid_text = _summarize_list(group, header, trailer, max_new_tokens=500)
+        mid_text = _summarize_list(model, tokenizer, device, group, header, trailer, max_new_tokens=max_mid)
         mids.append(mid_text.split("Intermediate Summary:")[-1].strip())
 
     # 2) Final stage: intermediate summaries -> final summary
     final_header = "Combine these intermediate summaries into one cohesive book summary (500-750 words). Maintain chronology and avoid repetition. Provide your answer as a single paragraph and nothing else:"
     final_trailer = "Final Summary:"
-    final_text = _summarize_list(mids, final_header, final_trailer, max_new_tokens=1000)
+    final_text = _summarize_list(model, tokenizer, device, mids, final_header, final_trailer, max_new_tokens=max_final)
     return final_text.split("Final Summary:")[-1].strip()
