@@ -124,6 +124,7 @@ with st.sidebar:
 
     uploaded = st.file_uploader("Upload .txt file", type=["txt"])
     start = st.button("Start summarization")
+    stop = st.button("Stop summarization")
 
 # -------------------------------
 # Main flow
@@ -173,22 +174,80 @@ st.dataframe(df_chunks, use_container_width=True, height=300)
 st.subheader("Step 3 — Per-chunk summarization")
 status_container = st.container()
 with st.spinner("Generating per-chunk summaries…"):
-    chunk_summaries = summarize_chunks_streaming(
-        model, tok, device,
-        chunks, prompt_index, chunk_tokens, full_name,
-        status_container
-    )
+    # Allow interruption between batches via session state flag
+    if "_stop_flag" not in st.session_state:
+        st.session_state._stop_flag = False
+    if stop:
+        st.session_state._stop_flag = True
+
+    def should_stop():
+        return bool(st.session_state.get("_stop_flag", False))
+
+    chunk_summaries = []
+    bs = pick_batch_size_heuristic(full_name, chunk_tokens)
+    prompts = [load_prompt(prompt_index, c) for c in chunks]
+    ctx = int(getattr(model.config, "max_position_embeddings", 4096)); reserve = 128
+    over = sum(1 for p in prompts if count_tokens(tok, p) > ctx - reserve)
+    if over:
+        st.warning(f"{over} prompt(s) may exceed the model context ({ctx}). They will be truncated. Consider reducing chunk length.")
+
+    total = len(prompts)
+    progress = st.progress(0)
+    ready_flags = [False] * total
+    for start_idx in range(0, total, bs):
+        if should_stop():
+            break
+        batch = prompts[start_idx:start_idx+bs]
+        enc = tok(batch, return_tensors="pt", padding=True, truncation=True)
+        enc = {k: v.to(device) for k, v in enc.items()}
+        with torch.inference_mode():
+            gen = model.generate(
+                **enc,
+                max_new_tokens=350,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tok.pad_token_id,
+            )
+        decoded = tok.batch_decode(gen, skip_special_tokens=True)
+        for j, txt in enumerate(decoded):
+            summary = txt.split("Summary:")[-1].strip()
+            idx = start_idx + j
+            if idx >= len(chunk_summaries):
+                chunk_summaries.append(summary)
+            else:
+                # In case of re-run, extend/overwrite
+                chunk_summaries[idx] = summary
+            ready_flags[idx] = True
+        progress.progress(min(1.0, (start_idx + bs) / total))
+
+        with status_container:
+            df = pd.DataFrame({
+                "chunk_id": list(range(len(ready_flags))),
+                "summary_ready": ready_flags,
+                "summary_excerpt": [
+                    ("" if i >= len(chunk_summaries) or chunk_summaries[i] is None else (chunk_summaries[i][:200] + ("..." if len(chunk_summaries[i]) > 200 else "")))
+                    for i in range(len(ready_flags))
+                ],
+            })
+            st.dataframe(df, use_container_width=True)
+    # If stopped early, trim to produced count
+    chunk_summaries = chunk_summaries[:sum(ready_flags)]
+
 st.success("Per-chunk summaries ready.")
 
 # Aggregate
 st.subheader("Step 4 — Aggregate to final summary")
 with st.spinner("Aggregating…"):
+    def should_stop():
+        return bool(st.session_state.get("_stop_flag", False))
     final_summary = aggregate_summaries(
         model, tok, device,
         summaries=chunk_summaries,
         group_size=10,
         max_mid=500,
         max_final=final_len,
+        should_stop=should_stop,
     )
 st.text_area("Final Summary", value=final_summary, height=250)
 

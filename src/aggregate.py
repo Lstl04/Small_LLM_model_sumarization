@@ -1,5 +1,5 @@
 import torch
-from typing import List
+from typing import List, Optional, Callable
 
 
 def _summarize_list(model, tokenizer, device, text_list: List[str], header: str, trailer: str, max_new_tokens: int) -> str:
@@ -30,6 +30,7 @@ def aggregate_summaries(
     group_size: int = 10,
     max_mid: int = 500,
     max_final: int = 1000,
+    should_stop: Optional[Callable[[], bool]] = None,
 ) -> str:
     """
     Hierarchical aggregation to avoid OOM:
@@ -44,11 +45,15 @@ def aggregate_summaries(
     header = "Combine the following chunk summaries into a single, coherent intermediate summary. Keep all major plot points, characters, and themes. Provide your answer as a single paragraph and nothing else:"
     trailer = "Intermediate Summary:"
     for i in range(0, len(summaries), group_size):
+        if should_stop is not None and should_stop():
+            return "[Stopped by user during aggregation]"
         group = summaries[i:i + group_size]
         mid_text = _summarize_list(model, tokenizer, device, group, header, trailer, max_new_tokens=max_mid)
         mids.append(mid_text.split("Intermediate Summary:")[-1].strip())
 
     # 2) Final stage: intermediate summaries -> final summary
+    if should_stop is not None and should_stop():
+        return "[Stopped by user before final aggregation]"
     final_header = "Combine these intermediate summaries into one cohesive book summary (500-750 words). Maintain chronology and avoid repetition. Provide your answer as a single paragraph and nothing else:"
     final_trailer = "Final Summary:"
     final_text = _summarize_list(model, tokenizer, device, mids, final_header, final_trailer, max_new_tokens=max_final)
