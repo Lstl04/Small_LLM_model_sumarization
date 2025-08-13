@@ -2,7 +2,7 @@ pandas
 huggingface_hub
 transformers
 bitsandbytes
-re
 sentencepiece
 accelerate
 safetensors
+streamlit
